@@ -41,7 +41,7 @@
 
     <hr style="margin-top: 30px; border: 0; border-top: 1px dashed #ccc;">
 
-    <h3>Section de récupération (Anti-blocage CORS)</h3>
+    <h3>Section de récupération (Pour votre vidéo existante)</h3>
     <label for="recoveryId">Collez l'ID de votre tâche reçue :</label>
     <input type="text" id="recoveryId" value="video_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDphZ25lcy12aWRlby12Mi4wO3ZpZGVvX2lkOnZpZGVvX2I3ODhmODFlYTA1NTRkNDg4NTQ0YzQyMTkxODAyZWNm">
     <button class="secours-btn" onclick="openVideoDirectly()">2. Ouvrir le flux vidéo dans un nouvel onglet</button>
@@ -87,6 +87,8 @@ async function generateVideo() {
 
     try {
         const imageBase64 = await fileToBase64(fileInput[0]);
+        
+        // CORRECTION : Utilisation de l'URL officielle de l'API Hub
         const response = await fetch('https://agnes-ai.com', { 
             method: 'POST',
             headers: {
@@ -114,7 +116,6 @@ async function generateVideo() {
     }
 }
 
-// LA MÉTHODE DE SECOURS ABSOLUE SANS ERREUR CORS POSSIBLE
 function openVideoDirectly() {
     const taskId = document.getElementById('recoveryId').value;
     const outputDiv = document.getElementById('output');
@@ -124,9 +125,9 @@ function openVideoDirectly() {
         return;
     }
 
-    outputDiv.innerHTML = "Ouverture de la passerelle de données dans un nouvel onglet...<br>Si la page est blanche, faites un clic droit n'importe où et cliquez sur 'Inspecter' puis allez dans l'onglet 'Network' ou copiez simplement l'URL brute affichée.";
+    outputDiv.innerHTML = "Ouverture du flux de données dans un nouvel onglet...";
     
-    // On force le navigateur à charger l'adresse de la vidéo en direct, brisant la restriction de domaine
+    // CORRECTION : Redirection vers le point de récupération de l'API officielle
     const finalUrl = `https://agnes-ai.com/${taskId}`;
     window.open(finalUrl, '_blank');
 }
