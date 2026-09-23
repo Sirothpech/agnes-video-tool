@@ -11,9 +11,9 @@
         input, textarea, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background-color: #e91e63; color: white; border: none; cursor: pointer; font-size: 16px; margin-top: 20px; font-weight: bold; }
         button:hover { background-color: #c2185b; }
+        .proxy-btn { background-color: #6c757d; font-size: 13px; padding: 5px 10px; margin-top: 5px; }
+        .proxy-btn:hover { background-color: #5a6268; }
         #output { margin-top: 25px; padding: 15px; background: #e9ecef; border-left: 5px solid #e91e63; min-height: 50px; white-space: pre-wrap; }
-        .preview-box { margin-top: 10px; max-width: 200px; display: none; border-radius: 4px; overflow: hidden; }
-        .preview-box img { width: 100%; height: auto; display: block; }
         .duration-container { display: flex; align-items: center; gap: 15px; margin-top: 5px; }
         .duration-container input { width: auto; flex-grow: 1; }
         .duration-val { font-weight: bold; color: #e91e63; font-size: 16px; min-width: 30px; }
@@ -22,20 +22,21 @@
 <body>
 
 <div class="container">
-    <h2>Créateur de Clip Promotionnel (Style "Love Is All")</h2>
+    <h2>Créateur de Clip (Style "Love Is All")</h2>
     
-    <label for="apiKey">Votre Clé API (Agnes AI / Autre) :</label>
-    <input type="password" id="apiKey" placeholder="Entrez votre clé secrète...">
+    <label for="apiKey">Votre Clé API (Agnes AI) :</label>
+    <input type="password" id="apiKey" placeholder="Entrez votre clé agnes_xxx...">
 
-    <label for="imageInput">Image de référence (Illustration du personnage) :</label>
-    <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
-    <div class="preview-box" id="previewContainer">
-        <img id="imagePreview" src="" alt="Aperçu">
-    </div>
+    <label>Étape Obligatoire de déblocage :</label>
+    <small style="color:#555; display:block;">Cliquez d'abord sur le bouton ci-dessous puis sur "Request temporary access" sur la page qui s'ouvre, sinon le navigateur bloquera l'envoi :</small>
+    <button type="button" class="proxy-btn" onclick="window.open('https://herokuapp.com', '_blank')">🔑 Activer le déblocage de sécurité (CORS)</button>
 
-    <label for="durationSlider">Durée de la vidéo (Modèle 2.5) :</label>
+    <label for="imageUrlInput">URL publique de votre image de référence :</label>
+    <input type="url" id="imageUrlInput" placeholder="https://exemple.com">
+
+    <label for="durationSlider">Durée de la vidéo (Modèle 2.5 Flash) :</label>
     <div class="duration-container">
-        <input type="range" id="durationSlider" min="4" max="12" value="5" oninput="updateDurationText(this.value)">
+        <input type="range" id="durationSlider" min="4" max="12" value="5" oninput="document.getElementById('durationDisplay').innerText = this.value + 's'">
         <span class="duration-val" id="durationDisplay">5s</span>
     </div>
 
@@ -45,78 +46,56 @@
     <button onclick="generateVideo()">Générer le Clip Vidéo</button>
 
     <h3>Statut / Résultat :</h3>
-    <div id="output">Sélectionnez vos fichiers et cliquez sur Générer...</div>
+    <div id="output">Activez le déblocage, entrez vos infos et cliquez sur Générer...</div>
 </div>
 
 <script>
-function updateDurationText(val) {
-    document.getElementById('durationDisplay').innerText = val + 's';
-}
-
-function previewImage(event) {
-    const reader = new FileReader();
-    reader.onload = function() {
-        const output = document.getElementById('imagePreview');
-        output.src = reader.result;
-        document.getElementById('previewContainer').style.display = 'block';
-    };
-    reader.readAsDataURL(event.target.files);
-}
-
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-}
-
 async function generateVideo() {
     const apiKey = document.getElementById('apiKey').value;
     const promptText = document.getElementById('prompt').value;
-    const imageFile = document.getElementById('imageInput').files[0];
+    const imageUrl = document.getElementById('imageUrlInput').value;
     const videoDuration = document.getElementById('durationSlider').value;
     const outputDiv = document.getElementById('output');
 
-    if (!apiKey || !promptText) {
-        alert("Veuillez remplir la clé API et la consigne.");
+    if (!apiKey || !promptText || !imageUrl) {
+        alert("Veuillez remplir la clé API, le prompt et l'URL de l'image.");
         return;
     }
 
-    outputDiv.innerText = "Traitement de l'image et envoi à l'IA en cours... Veuillez patienter.";
+    outputDiv.innerText = "Envoi à l'IA via le tunnel sécurisé... Veuillez patienter.";
 
     try {
-        let base64Image = null;
-        if (imageFile) {
-            base64Image = await fileToBase64(imageFile);
-        }
+        // Utilisation du proxy CORS universel pour casser le blocage du navigateur
+        const proxyUrl = 'https://herokuapp.com';
+        const targetUrl = 'https://apihub.agnes-ai.com/v1/videos';
 
-        // Requête HTTP envoyée à l'API hub officielle de Agnes AI
-        const response = await fetch('https://agnes-ai.com', { 
+        const response = await fetch(proxyUrl + targetUrl, { 
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify({
-                model: "agnes-video-2.5",
+                model: "agnes-video-2.5-flash", // Version Flash mise à jour
                 prompt: promptText,
                 mode: "reference",
-                images: base64Image ? [base64Image] : [], 
-                seconds: videoDuration // La durée choisie est injectée ici dynamiquement
+                images: [imageUrl], // L'API exige des liens d'images directs
+                seconds: String(videoDuration),
+                size: "720P",
+                n: 1
             })
         });
 
         const data = await response.json();
         
         if (response.ok) {
-            outputDiv.innerHTML = "<strong>Demande soumise !</strong><br>ID de la vidéo : " + data.video_id + "<br><br>L'IA traite la vidéo. Les API vidéo étant asynchrones, copiez cet ID pour vérifier l'avancement sur votre console Agnes AI.";
+            outputDiv.innerHTML = "<strong>Demande soumise !</strong><br>ID de la tâche : " + (data.video_id || data.id) + "<br><br>L'IA prépare votre clip style 70s. Vous pouvez suivre l'avancement dans votre console de suivi Agnes AI.";
         } else {
-            outputDiv.innerText = "Erreur de l'API : " + (data.error?.message || response.statusText);
+            outputDiv.innerText = "Erreur renvoyée par Agnes AI : " + (data.error?.message || JSON.stringify(data));
         }
     } catch (error) {
-        outputDiv.innerText = "Erreur de connexion : " + error.message;
+        outputDiv.innerText = "Erreur réseau : " + error.message;
     }
 }
 </script>
