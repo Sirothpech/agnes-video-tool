@@ -85,7 +85,12 @@ async function generateVideo() {
     outputDiv.innerText = "Traitement et envoi à Agnes AI... Veuillez patienter.";
 
     try {
-        const imageBase64 = await fileToBase64(fileInput);
+        const imageBase64 = await fileToBase64(fileInput[0]);
+
+        // Utilisation du proxy AllOrigins pour contourner le CORS de manière invisible et publique
+        const targetUrl = 'https://apihub.agnes-ai.com/v1/videos';
+        const proxyUrl = `https://allorigins.win{encodeURIComponent(targetUrl)}`;
+
         const response = await fetch('https://apihub.agnes-ai.com/v1/videos', { 
             method: 'POST',
             headers: {
