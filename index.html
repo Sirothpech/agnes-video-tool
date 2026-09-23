@@ -17,7 +17,6 @@
         .duration-container { display: flex; align-items: center; gap: 15px; margin-top: 5px; }
         .duration-container input { width: auto; flex-grow: 1; }
         .duration-val { font-weight: bold; color: #e91e63; font-size: 16px; min-width: 30px; }
-        .toggle-box { margin-top: 5px; font-size: 13px; color: #666; }
     </style>
 </head>
 <body>
@@ -28,19 +27,8 @@
     <label for="apiKey">Votre Clé API (Agnes AI) :</label>
     <input type="password" id="apiKey" placeholder="Entrez votre clé agnes_xxx...">
 
-    <!-- Sélection de la méthode d'image (Local par défaut) -->
-    <label>Image de référence :</label>
-    <div class="toggle-box">
-        <input type="radio" id="useLocal" name="imgSource" value="local" checked onclick="toggleImageSource()"> Utiliser un fichier local 
-        <input type="radio" id="useUrl" name="imgSource" value="url" onclick="toggleImageSource()"> Utiliser un lien internet (URL)
-    </div>
-
-    <div id="localInputContainer" style="margin-top:10px;">
-        <input type="file" id="imageFileInput" accept="image/*" onchange="previewLocalImage(event)">
-    </div>
-    <div id="urlInputContainer" style="margin-top:10px; display:none;">
-        <input type="url" id="imageUrlInput" placeholder="https://exemple.com">
-    </div>
+    <label for="imageFileInput">Image locale de référence (Illustration de votre dandy) :</label>
+    <input type="file" id="imageFileInput" accept="image/*" onchange="previewLocalImage(event)">
 
     <div class="preview-box" id="previewContainer">
         <img id="imagePreview" src="" alt="Aperçu">
@@ -58,17 +46,10 @@
     <button onclick="generateVideo()">Générer le Clip Vidéo</button>
 
     <h3>Statut / Résultat :</h3>
-    <div id="output">Entrez vos données et cliquez sur Générer...</div>
+    <div id="output">Sélectionnez votre dandy, entrez votre clé et cliquez sur Générer...</div>
 </div>
 
 <script>
-function toggleImageSource() {
-    const isLocal = document.getElementById('useLocal').checked;
-    document.getElementById('localInputContainer').style.display = isLocal ? 'block' : 'none';
-    document.getElementById('urlInputContainer').style.display = isLocal ? 'none' : 'block';
-    document.getElementById('previewContainer').style.display = 'none';
-}
-
 function previewLocalImage(event) {
     const reader = new FileReader();
     reader.onload = function() {
@@ -76,7 +57,7 @@ function previewLocalImage(event) {
         output.src = reader.result;
         document.getElementById('previewContainer').style.display = 'block';
     };
-    reader.readAsDataURL(event.target.files[0]);
+    reader.readAsDataURL(event.target.files);
 }
 
 function fileToBase64(file) {
@@ -92,39 +73,25 @@ async function generateVideo() {
     const apiKey = document.getElementById('apiKey').value;
     const promptText = document.getElementById('prompt').value;
     const videoDuration = document.getElementById('durationSlider').value;
-    const isLocal = document.getElementById('useLocal').checked;
+    const fileInput = document.getElementById('imageFileInput').files[0];
     const outputDiv = document.getElementById('output');
 
-    if (!apiKey || !promptText) {
-        alert("Veuillez remplir la clé API et le prompt.");
+    if (!apiKey || !promptText || !fileInput) {
+        alert("Veuillez remplir la clé API, le prompt et sélectionner une image.");
         return;
     }
 
-    outputDiv.innerText = "Préparation et envoi à l'IA en cours... Veuillez patienter.";
+    outputDiv.innerText = "Traitement de l'image et envoi à l'IA via tunnel sécurisé... Veuillez patienter.";
 
     try {
-        let imageParam = "";
-        
-        if (isLocal) {
-            const localFile = document.getElementById('imageFileInput').files[0];
-            if (!localFile) {
-                alert("Veuillez sélectionner un fichier image local.");
-                return;
-            }
-            imageParam = await fileToBase64(localFile);
-        } else {
-            imageParam = document.getElementById('imageUrlInput').value;
-            if (!imageParam) {
-                alert("Veuillez entrer une URL d'image valide.");
-                return;
-            }
-        }
+        // Encodage de l'image locale en texte Base64
+        const imageBase64 = await fileToBase64(fileInput);
 
-        // Utilisation du Proxy Direct Gratuit et Libre (Bypasse le CORS sans login)
-        const proxyUrl = 'https://corsproxy.io/?';
+        // Nouveau proxy gratuit sans clé obligatoire (Corsfix)
+        const proxyUrl = 'https://proxy.corsfix.com/?';
         const targetUrl = 'https://agnes-ai.com';
 
-        const response = await fetch(proxyUrl + encodeURIComponent(targetUrl), { 
+        const response = await fetch(proxyUrl + targetUrl, { 
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -134,7 +101,7 @@ async function generateVideo() {
                 model: "agnes-video-2.5-flash",
                 prompt: promptText,
                 mode: "reference",
-                images: [imageParam],
+                images: [imageBase64],
                 seconds: String(videoDuration),
                 size: "720P",
                 n: 1
@@ -144,9 +111,9 @@ async function generateVideo() {
         const data = await response.json();
         
         if (response.ok) {
-            outputDiv.innerHTML = "<strong>Demande soumise avec succès !</strong><br>ID de la tâche : " + (data.video_id || data.id) + "<br><br>L'IA prépare votre clip. Le traitement prend généralement entre 30 et 90 secondes.";
+            outputDiv.innerHTML = "<strong>Demande soumise avec succès !</strong><br>ID de la tâche : " + (data.video_id || data.id) + "<br><br>L'IA prépare votre animation rétro. Le traitement prend de 30 à 90 secondes.";
         } else {
-            outputDiv.innerText = "Réponse de l'API : " + JSON.stringify(data, null, 2);
+            outputDiv.innerText = "Réponse de l'API Agnes AI : " + JSON.stringify(data, null, 2);
         }
     } catch (error) {
         outputDiv.innerText = "Erreur réseau : " + error.message;
