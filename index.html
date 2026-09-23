@@ -16,6 +16,9 @@
         #output { margin-top: 25px; padding: 15px; background: #e9ecef; border-left: 5px solid #e91e63; min-height: 50px; white-space: pre-wrap; }
         .preview-box { margin-top: 10px; max-width: 200px; display: none; border-radius: 4px; overflow: hidden; }
         .preview-box img { width: 100%; height: auto; display: block; }
+        .video-result { margin-top: 20px; width: 100%; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .progress-bar-container { background-color: #ddd; border-radius: 4px; margin-top: 10px; display: none; }
+        .progress-bar { height: 10px; background-color: #28a745; width: 0%; border-radius: 4px; transition: width 0.4s ease; }
     </style>
 </head>
 <body>
@@ -34,22 +37,28 @@
     </div>
 
     <label for="prompt">Consigne d'animation (Prompt) :</label>
-    <textarea id="prompt" rows="5">A cinematic 70s psychedelic cartoon style, vibrant colors, character dancing joyfully, smooth looping animation, reminiscent of the 'Love Is All' music video, high quality digital art.</textarea>
+    <textarea id="prompt" rows="5">Animate this character in a retro 70s psychedelic cartoon style, vibrant colors, dancing joyfully, smooth looping animation, reminiscent of the 'Love Is All' music video, high quality digital art.</textarea>
 
     <button onclick="generateVideo()">1. Créer une nouvelle vidéo</button>
 
     <hr style="margin-top: 30px; border: 0; border-top: 1px dashed #ccc;">
 
-    <h3>Section de récupération (Anti-blocage CORS)</h3>
-    <label for="recoveryId">ID de la vidéo générée :</label>
-    <input type="text" id="recoveryId" placeholder="video_xxx...">
-    <button class="secours-btn" onclick="openVideoDirectly()">2. Ouvrir le flux vidéo dans un nouvel onglet</button>
+    <h3>Section de récupération (Suivi de la progression)</h3>
+    <label for="recoveryId">Collez l'ID de votre tâche reçue :</label>
+    <input type="text" id="recoveryId" value="video_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDphZ25lcy12aWRlby12Mi4wO3ZpZGVvX2lkOnZpZGVvX2I3ODhmODFlYTA1NTRkNDg4NTQ0YzQyMTkxODAyZWNm">
+    <button class="secours-btn" onclick="checkSpecificVideo()">2. Vérifier et Récupérer le Clip MP4</button>
+
+    <div class="progress-bar-container" id="progContainer">
+        <div class="progress-bar" id="progBar"></div>
+    </div>
 
     <h3>Statut / Résultat :</h3>
-    <div id="output">Sélectionnez votre dandy, mettez votre clé API et cliquez sur le bouton 1.</div>
+    <div id="output">Collez votre clé API en haut, puis cliquez sur le bouton bleu ou le bouton rose !</div>
 </div>
 
 <script>
+let pollingTimer = null;
+
 function previewLocalImage(event) {
     const reader = new FileReader();
     reader.onload = function() {
@@ -57,7 +66,7 @@ function previewLocalImage(event) {
         output.src = reader.result;
         document.getElementById('previewContainer').style.display = 'block';
     };
-    if(event.target.files && event.target.files[0]) {
+    if (event.target.files && event.target.files[0]) {
         reader.readAsDataURL(event.target.files[0]);
     }
 }
@@ -71,7 +80,7 @@ function fileToBase64(file) {
     });
 }
 
-// BOUTON 1 FLUIDE GRÂCE AU PROXY SÉCURISÉ D'ALLORIGINS
+// Votre fonction d'origine pour le bouton 1 (sans erreur de fetch)
 async function generateVideo() {
     const apiKey = document.getElementById('apiKey').value;
     const promptText = document.getElementById('prompt').value;
@@ -83,16 +92,12 @@ async function generateVideo() {
         return;
     }
 
-    outputDiv.innerText = "Encapsulation CORS et envoi à Agnes AI... Veuillez patienter.";
+    if(pollingTimer) clearInterval(pollingTimer);
+    outputDiv.innerText = "Traitement et envoi à Agnes AI... Veuillez patienter.";
 
     try {
         const imageBase64 = await fileToBase64(fileInput[0]);
-        
-        // On cible l'API officielle
-        const targetUrl = 'https://apihub.agnes-ai.com/v1/videos';
-
-        // On utilise la passerelle de secours AllOrigins qui accepte les requêtes POST complexes
-        const response = await fetch(`https://allorigins.win{encodeURIComponent(targetUrl)}`, { 
+        const response = await fetch('https://apihub.agnes-ai.com/v1/videos', { 
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -106,55 +111,101 @@ async function generateVideo() {
             })
         });
 
-        // Si le proxy répond mais qu'il y a un souci
-        if (!response.ok) {
-            // Tentative d'appel direct si le proxy est saturé
-            const fallbackResponse = await fetch(targetUrl, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: "agnes-video-v2.0", prompt: promptText, image: imageBase64, mode: "ti2vid" })
-            });
-            const fallbackData = await fallbackResponse.json();
-            handleApiResponse(fallbackData, fallbackResponse.ok);
-            return;
-        }
-
         const data = await response.json();
-        // AllOrigins encapsule la réponse dans data.contents
-        const finalData = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-        handleApiResponse(finalData, true);
-
+        if (response.ok) {
+            const taskId = data.video_id || data.id;
+            document.getElementById('recoveryId').value = taskId;
+            outputDiv.innerHTML = `<strong>Demande soumise !</strong><br>ID de la tâche : <code>${taskId}</code><br><br>⏳ L'IA fabrique votre clip. Suivi automatique en cours...`;
+            
+            // Lancement direct du suivi en temps réel
+            startPolling(taskId, apiKey);
+        } else {
+            outputDiv.innerText = "Erreur : " + JSON.stringify(data);
+        }
     } catch (error) {
-        outputDiv.innerText = "Erreur de transmission : " + error.message + "\nAssurez-vous que l'extension 'Allow CORS' est bien allumée (ON) en haut à droite pour sécuriser le flux local.";
+        outputDiv.innerText = "Erreur réseau : " + error.message;
     }
 }
 
-function handleApiResponse(data, isOk) {
-    const outputDiv = document.getElementById('output');
-    if (isOk && (data.video_id || data.id)) {
-        const taskId = data.video_id || data.id;
-        document.getElementById('recoveryId').value = taskId;
-        outputDiv.innerHTML = `<strong>🎉 Demande soumise avec succès !</strong><br>ID de la tâche : <code>${taskId}</code><br><br>L'IA prépare votre clip. Attendez 1 à 2 minutes, puis cliquez sur le bouton bleu ci-dessous pour ouvrir votre vidéo !`;
-    } else {
-        outputDiv.innerText = "Réponse de l'API : " + JSON.stringify(data, null, 2);
-    }
-}
-
-// BOUTON 2 DIRECT EN ONGLET (Pas de CORS possible)
-function openVideoDirectly() {
+// Fonction pour déclencher manuellement le suivi avec le bouton 2
+function checkSpecificVideo() {
+    const apiKey = document.getElementById('apiKey').value;
     const taskId = document.getElementById('recoveryId').value;
-    const outputDiv = document.getElementById('output');
-
+    
+    if (!apiKey) {
+        alert("Veuillez entrer votre clé API en haut de la page.");
+        return;
+    }
     if (!taskId) {
         alert("Veuillez entrer un ID de tâche valide.");
         return;
     }
 
-    outputDiv.innerHTML = "Ouverture de votre flux vidéo dans un nouvel onglet en cours...";
+    if(pollingTimer) clearInterval(pollingTimer);
+    startPolling(taskId, apiKey);
+}
+
+// Système de boucle automatique qui affiche la progression
+function startPolling(taskId, apiKey) {
+    const outputDiv = document.getElementById('output');
+    const progContainer = document.getElementById('progContainer');
+    const progBar = document.getElementById('progBar');
     
-    // Récupération de l'adresse de suivi par ID de tâche ou vidéo
-    const finalUrl = `https://agnes-ai.com{taskId}`;
-    window.open(finalUrl, '_blank');
+    progContainer.style.display = "block";
+    progBar.style.width = "10%"; // Valeur de départ visuelle
+    outputDiv.innerText = "Connexion au serveur de rendu d'Agnes AI...";
+
+    pollingTimer = setInterval(async () => {
+        try {
+            // Correction de l'adresse officielle de récupération
+            const response = await fetch(`https://agnes-ai.com{taskId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                const videoUrl = data.video_url || data.output || data.url || (data.data && data.data.video_url);
+                const status = data.status ? data.status.toLowerCase() : "";
+
+                // Cas 1 : La vidéo est prête !
+                if (videoUrl || status === "completed" || status === "success") {
+                    clearInterval(pollingTimer);
+                    progBar.style.width = "100%";
+                    const finalLink = videoUrl || (data.data && data.data.video_url);
+                    
+                    outputDiv.innerHTML = `
+                        <strong>🎉 Clip terminé et récupéré avec succès !</strong><br><br>
+                        <video class="video-result" controls autoplay loop style="max-width:100%;">
+                            <source src="${finalLink}" type="video/mp4">
+                            Votre navigateur ne supporte pas le lecteur vidéo.
+                        </video>
+                        <br><br>
+                        <a href="${finalLink}" target="_blank" download="clip_70s.mp4" style="display:inline-block; background:#28a745; color:white; padding:12px 20px; border-radius:4px; text-decoration:none; font-weight:bold; margin-top:10px;">💾 TÉLÉCHARGER LE CLIP MP4</a>
+                    `;
+                } 
+                // Cas 2 : Erreur côté serveur
+                else if (status === "failed") {
+                    clearInterval(pollingTimer);
+                    progContainer.style.display = "none";
+                    outputDiv.innerText = "❌ Le rendu a échoué sur les serveurs d'Agnes AI (Vérifiez la taille de votre image ou vos crédits).";
+                } 
+                // Cas 3 : En cours de calcul
+                else {
+                    progBar.style.width = "50%"; // Progression intermédiaire visuelle
+                    outputDiv.innerHTML = `⏳ Statut actuel : <strong>${data.status || "En cours de génération"}</strong>...<br>L'IA anime votre dandy. Cette page s'actualisera toute seule dès que le rendu sera fini (Toutes les 10s).`;
+                }
+            } else {
+                clearInterval(pollingTimer);
+                outputDiv.innerText = "Erreur renvoyée par le serveur : " + JSON.stringify(data);
+            }
+        } catch (error) {
+            console.log("Attente de réponse CORS/Réseau...");
+        }
+    }, 10000); // Boucle toutes les 10 secondes
 }
 </script>
 
